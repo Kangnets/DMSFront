@@ -2,70 +2,18 @@ import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 
 const Popup = () => {
-  const [results, setResults] = useState<string[]>([]);
+  const [results, setResults] = useState<
+    { video: string; comments: string[] }[]
+  >([]);
   const [response, setResponse] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleCrawl = () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tab = tabs[0];
-      if (tab.id) {
-        chrome.tabs.sendMessage(
-          tab.id,
-          { action: "crawl_xpath", xpath: '//*[@id="video-title"]' },
-          (response) => {
-            if (!response.success) {
-              console.error("Crawl failed:", response.error);
-            }
-          }
-        );
-      }
-    });
-  };
-
-  const handleAnalyze = () => {
-    if (results.length === 0) {
-      alert("No data to analyze. Please crawl data first.");
-      return;
-    }
-
-    fetch(
-      "https://port-0-dmsbackend-m0zjsul0a4243974.sel4.cloudtype.app/sentiment/analysis",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ texts: results }),
-      }
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          setResponse(`Error: ${data.error}`);
-        } else {
-          const {
-            total,
-            positiveCount,
-            negativeCount,
-            positiveRatio,
-            negativeRatio,
-          } = data;
-          setResponse(
-            `Total: ${total}\nPositive: ${positiveCount} (${positiveRatio})\nNegative: ${negativeCount} (${negativeRatio})`
-          );
-        }
-      })
-      .catch((error) => {
-        console.error("Error analyzing sentiment:", error);
-        setResponse("Failed to analyze sentiment. Check console for details.");
-      });
-  };
-
+  // 메시지 수신 리스너
   useEffect(() => {
-    // 메시지 수신
     const listener = (message: any) => {
       if (message.action === "crawl_results") {
-        setResults(message.data);
+        console.log("Crawl results received:", message.data);
+        setResults(message.data); // 상태 업데이트
       }
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -75,22 +23,94 @@ const Popup = () => {
     };
   }, []);
 
+  // 크롤링 시작
+  const handleCrawl = () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (tab.id) {
+        chrome.tabs.sendMessage(
+          tab.id,
+          { action: "crawl_comments", videoLimit: 10, commentLimit: 10 },
+          (response) => {
+            if (!response.success) {
+              setResponse(`Crawl failed: ${response.error}`);
+              console.error("Crawl failed:", response.error);
+            } else {
+              setResponse("Crawl completed successfully!");
+            }
+          }
+        );
+      }
+    });
+  };
+
+  // POST 요청 전송
+  const handleAnalyze = async () => {
+    if (results.length === 0) {
+      setResponse("No crawled data to analyze.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("http://localhost:3000/sentiment/analysis", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ data: results }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Error ${res.status}: ${errorText}`);
+      }
+
+      const resultData = await res.json();
+      setResponse(
+        `Analysis successful: ${JSON.stringify(resultData, null, 2)}`
+      );
+      console.log("Analysis response:", resultData);
+    } catch (error: any) {
+      setResponse(`Analysis failed: ${error.message}`);
+      console.error("Error during analysis:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div style={{ padding: "10px", width: "300px" }}>
       <button onClick={handleCrawl} style={{ marginBottom: "10px" }}>
         Start Crawling
       </button>
-      <button onClick={handleAnalyze} style={{ marginBottom: "10px" }}>
-        Analyze Sentiment
+
+      <button
+        onClick={handleAnalyze}
+        style={{ marginBottom: "10px" }}
+        disabled={isLoading}
+      >
+        {isLoading ? "Analyzing..." : "Send for Analysis"}
       </button>
+
       <h3>Crawled Results</h3>
-      <ul style={{ maxHeight: "100px", overflowY: "auto" }}>
+      <ul style={{ maxHeight: "300px", overflowY: "auto" }}>
         {results.length > 0 ? (
-          results.map((item, index) => <li key={index}>{item}</li>)
+          results.map((item, index) => (
+            <li key={index}>
+              <strong>{item.video}</strong>
+              <ul>
+                {item.comments.map((comment, cIndex) => (
+                  <li key={cIndex}>{comment}</li>
+                ))}
+              </ul>
+            </li>
+          ))
         ) : (
           <li>No data yet</li>
         )}
       </ul>
+
       <h3>Analysis Response</h3>
       <pre>{response || "No response yet"}</pre>
     </div>
