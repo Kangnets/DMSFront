@@ -1,9 +1,8 @@
-let results: { video: string; comments: string[] }[] = []; // 영상 제목과 댓글 저장
+let results: { video: string; comments: string[] }[] = [];
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-// XPath 요소를 기다리는 함수
 const waitForElement = async (
   xpath: string,
   timeout: number = 10000
@@ -18,12 +17,11 @@ const waitForElement = async (
       null
     ).singleNodeValue as HTMLElement;
     if (element) return element;
-    await sleep(500); // 대기
+    await sleep(500);
   }
-  return null; // 시간 초과 시 null 반환
+  return null;
 };
 
-// 댓글 섹션 스크롤
 const scrollToLoadComments = async (timeout: number = 10000): Promise<void> => {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -36,12 +34,11 @@ const scrollToLoadComments = async (timeout: number = 10000): Promise<void> => {
       XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
       null
     );
-    if (commentSection.snapshotLength > 0) return; // 댓글 섹션 발견 시 종료
+    if (commentSection.snapshotLength > 0) return;
   }
   console.warn("Failed to load comments within timeout.");
 };
 
-// 영상 제목과 댓글 크롤링
 const crawlVideoComments = async (
   videoXPath: string,
   commentXPath: string,
@@ -49,7 +46,6 @@ const crawlVideoComments = async (
   commentLimit: number
 ): Promise<void> => {
   for (let i = 0; i < videoLimit; i++) {
-    // i번째 영상 선택
     const videoElement = await waitForElement(
       `(${videoXPath})[${i + 1}]`,
       10000
@@ -61,24 +57,21 @@ const crawlVideoComments = async (
 
     const videoTitle = videoElement.textContent?.trim() || `Video ${i + 1}`;
     console.log(`Processing video: ${videoTitle}`);
-    videoElement.click(); // 영상 클릭
-    await sleep(5000); // 페이지 이동 대기
+    videoElement.click();
+    await sleep(5000);
 
-    await scrollToLoadComments(); // 댓글 로드 대기
+    await scrollToLoadComments();
 
-    // 댓글 추출
     const comments = extractComments(commentXPath, commentLimit);
     results.push({ video: videoTitle, comments });
 
     console.log(`Crawled ${comments.length} comments for: ${videoTitle}`);
 
-    // 이전 페이지로 복귀
     window.history.back();
-    await waitForElement(videoXPath); // 이전 페이지가 로드될 때까지 대기
-    await sleep(2000); // 추가 안정 대기
+    await waitForElement(videoXPath);
+    await sleep(2000);
   }
 
-  // 크롬 백그라운드로 결과 전송
   chrome.runtime.sendMessage(
     { action: "crawl_results", data: results },
     (response) => {
@@ -99,7 +92,6 @@ const crawlVideoComments = async (
   );
 };
 
-// XPath로 댓글 추출
 const extractComments = (xpath: string, limit: number): string[] => {
   const elements = document.evaluate(
     xpath,
@@ -116,14 +108,13 @@ const extractComments = (xpath: string, limit: number): string[] => {
   return comments;
 };
 
-// 메시지 리스너
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "crawl_comments") {
     const { videoLimit, commentLimit } = request;
 
     crawlVideoComments(
-      '//*[@id="video-title"]', // 영상 XPath
-      '//*[@id="content-text"]/span', // 댓글 XPath
+      '//*[@id="video-title"]',
+      '//*[@id="content-text"]/span',
       videoLimit,
       commentLimit
     )
@@ -135,6 +126,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: false, error: error.message });
       });
 
-    return true; // 비동기 응답 처리
+    return true;
   }
 });

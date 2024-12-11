@@ -1,0 +1,37 @@
+.header {
+  width: 329px;
+  height: 42px;
+  flex-shrink: 0;
+
+  border-radius: 10px 10px 0px 0px;
+  background: var(--main2, linear-gradient(90deg, #575fca 0%, #6c76f7 100%));
+}
+
+.search_btn {
+  display: flex;
+  width: 273px;
+  height: 46px;
+  padding: 12px 34px;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #f2f2f2;
+
+  color: #6972ef;
+  font-family: "Pretendard Variable";
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: normal;
+}
+
+.loading_font {
+  color: #6972ef;
+  font-family: "Pretendard Variable";
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: normal;
+}
